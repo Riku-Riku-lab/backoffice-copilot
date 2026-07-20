@@ -1,3 +1,4 @@
+import Link from "next/link";
 export default function Home() {
   return (
     <main className="min-h-screen bg-slate-100 flex items-center justify-center">
@@ -11,10 +12,12 @@ export default function Home() {
         </p>
 
         <div className="space-y-4">
-          <button className="w-full bg-blue-600 text-white p-4 rounded-xl hover:bg-blue-700 transition">
-            ✉️ メール作成
-          </button>
-
+        <Link
+          href="/mail"
+          className="block w-full rounded-xl bg-blue-600 p-4 text-center text-white transition hover:bg-blue-700"
+        >
+          ✉️ メール作成
+        </Link>
           <button className="w-full bg-green-600 text-white p-4 rounded-xl hover:bg-green-700 transition">
             📄 文書作成
           </button>
