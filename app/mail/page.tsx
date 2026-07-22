@@ -3,8 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 
+const recipientTypes = ["上司", "取引先", "同僚", "先生", "その他"];
+const tones = ["丁寧", "簡潔", "謝罪", "お礼", "やわらかめ"];
+
 export default function MailPage() {
   const [recipient, setRecipient] = useState("");
+  const [recipientType, setRecipientType] = useState("上司");
+  const [tone, setTone] = useState("丁寧");
   const [subject, setSubject] = useState("");
   const [content, setContent] = useState("");
   const [result, setResult] = useState("");
@@ -18,7 +23,7 @@ export default function MailPage() {
     setCopied(false);
 
     if (!subject.trim() || !content.trim()) {
-      setError("件名と内容を入力してください。");
+      setError("件名と伝えたい内容を入力してください。");
       return;
     }
 
@@ -27,30 +32,32 @@ export default function MailPage() {
 
       const response = await fetch("/api/generate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipient,
+          recipientType,
+          tone,
           subject,
           content,
         }),
       });
 
-      const data = await response.json();
+      const data: { result?: string; error?: string } =
+        await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "生成に失敗しました。");
+        throw new Error(
+          data.error || "メールの生成に失敗しました。"
+        );
       }
 
-      setResult(data.result);
+      setResult(data.result ?? "");
     } catch (error) {
-      const message =
+      setError(
         error instanceof Error
           ? error.message
-          : "予期しないエラーが発生しました。";
-
-      setError(message);
+          : "予期しないエラーが発生しました。"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -59,12 +66,24 @@ export default function MailPage() {
   async function copyResult() {
     if (!result) return;
 
-    await navigator.clipboard.writeText(result);
-    setCopied(true);
+    try {
+      await navigator.clipboard.writeText(result);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("コピーに失敗しました。");
+    }
+  }
 
-    window.setTimeout(() => {
-      setCopied(false);
-    }, 2000);
+  function resetForm() {
+    setRecipient("");
+    setRecipientType("上司");
+    setTone("丁寧");
+    setSubject("");
+    setContent("");
+    setResult("");
+    setError("");
+    setCopied(false);
   }
 
   return (
@@ -78,63 +97,96 @@ export default function MailPage() {
         </Link>
 
         <div className="rounded-2xl bg-white p-6 shadow-xl sm:p-10">
-          <h1 className="mb-2 text-3xl font-bold text-slate-800">
+          <p className="mb-2 text-sm font-bold text-blue-600">
+            Mail AI β版
+          </p>
+
+          <h1 className="text-3xl font-bold text-slate-800">
             ✉️ メール作成
           </h1>
 
-          <p className="mb-8 text-slate-500">
-            要点を入力すると、AIがビジネスメールに整えます。
+          <p className="mb-8 mt-3 text-slate-500">
+            件名と伝えたい内容を入力するだけで、
+            そのまま使えるメールを作成します。
           </p>
 
           <div className="space-y-5">
-            <div>
-              <label
-                htmlFor="recipient"
-                className="font-semibold text-slate-700"
-              >
-                宛先
-              </label>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div>
+                <label className="font-semibold text-slate-700">
+                  送る相手
+                </label>
+                <select
+                  value={recipientType}
+                  onChange={(event) =>
+                    setRecipientType(event.target.value)
+                  }
+                  className="mt-2 w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none focus:border-blue-500"
+                >
+                  {recipientTypes.map((type) => (
+                    <option key={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
 
+              <div>
+                <label className="font-semibold text-slate-700">
+                  文章の雰囲気
+                </label>
+                <select
+                  value={tone}
+                  onChange={(event) => setTone(event.target.value)}
+                  className="mt-2 w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none focus:border-blue-500"
+                >
+                  {tones.map((item) => (
+                    <option key={item}>{item}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="font-semibold text-slate-700">
+                宛先
+                <span className="ml-2 text-xs font-normal text-slate-400">
+                  任意
+                </span>
+              </label>
               <input
-                id="recipient"
                 value={recipient}
-                onChange={(event) => setRecipient(event.target.value)}
+                onChange={(event) =>
+                  setRecipient(event.target.value)
+                }
                 className="mt-2 w-full rounded-lg border border-slate-300 p-3 text-slate-900 outline-none focus:border-blue-500"
                 placeholder="例：株式会社〇〇 営業部 田中様"
               />
             </div>
 
             <div>
-              <label
-                htmlFor="subject"
-                className="font-semibold text-slate-700"
-              >
-                件名
+              <label className="font-semibold text-slate-700">
+                件名の要点
               </label>
-
               <input
-                id="subject"
                 value={subject}
-                onChange={(event) => setSubject(event.target.value)}
+                onChange={(event) =>
+                  setSubject(event.target.value)
+                }
                 className="mt-2 w-full rounded-lg border border-slate-300 p-3 text-slate-900 outline-none focus:border-blue-500"
-                placeholder="例：請求書送付のお願い"
+                placeholder="例：請求書を送ってほしい"
               />
             </div>
 
             <div>
-              <label
-                htmlFor="content"
-                className="font-semibold text-slate-700"
-              >
+              <label className="font-semibold text-slate-700">
                 伝えたい内容
               </label>
-
               <textarea
-                id="content"
                 value={content}
-                onChange={(event) => setContent(event.target.value)}
+                onChange={(event) =>
+                  setContent(event.target.value)
+                }
                 className="mt-2 min-h-40 w-full resize-y rounded-lg border border-slate-300 p-3 text-slate-900 outline-none focus:border-blue-500"
-                placeholder="例：6月分の請求書がまだ届いていないため、今週中に送ってほしい"
+                placeholder="例：6月分の請求書がまだ届いていない。今週中に送ってほしい。"
               />
             </div>
 
@@ -144,7 +196,9 @@ export default function MailPage() {
               disabled={isLoading}
               className="w-full rounded-xl bg-blue-600 p-4 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isLoading ? "AIが作成中..." : "✨ AIでメール作成"}
+              {isLoading
+                ? "AIがメールを作成中..."
+                : "✨ AIでメール作成"}
             </button>
 
             {error && (
@@ -155,18 +209,28 @@ export default function MailPage() {
 
             {result && (
               <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                <div className="mb-3 flex items-center justify-between gap-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <h2 className="text-lg font-bold text-slate-800">
                     生成結果
                   </h2>
 
-                  <button
-                    type="button"
-                    onClick={copyResult}
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                  >
-                    {copied ? "コピーしました！" : "📋 コピー"}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                    >
+                      新しく作る
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={copyResult}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                    >
+                      {copied ? "コピーしました！" : "📋 コピー"}
+                    </button>
+                  </div>
                 </div>
 
                 <pre className="whitespace-pre-wrap font-sans leading-7 text-slate-800">
