@@ -20,6 +20,7 @@ export default function MailPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isRewriting, setIsRewriting] = useState(false);
 
   function changeMode(mode: MailMode) {
     setMailMode(mode);
@@ -92,6 +93,48 @@ export default function MailPage() {
     }
   }
 
+  async function rewriteMail(style: string) {
+    if (!result || isRewriting) return;
+
+    setError("");
+    setCopied(false);
+
+    try {
+      setIsRewriting(true);
+
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mailMode: "rewrite",
+          rewriteStyle: style,
+          originalMail: result,
+        }),
+      });
+
+      const data: {
+        result?: string;
+        error?: string;
+      } = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error || "メールの再編集に失敗しました。"
+        );
+      }
+
+      setResult(data.result ?? "");
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "メールの再編集に失敗しました。"
+      );
+    } finally {
+      setIsRewriting(false);
+    }
+  }
+
   function resetForm() {
     setRecipient("");
     setRecipientType("上司");
@@ -114,7 +157,7 @@ export default function MailPage() {
 
         <div className="rounded-2xl bg-white p-6 shadow-xl sm:p-10">
           <p className="mb-2 text-sm font-bold text-blue-600">
-            Mail AI Ver1.1
+            Mail AI Ver1.2
           </p>
 
           <h1 className="text-3xl font-bold text-slate-800">
@@ -265,6 +308,32 @@ export default function MailPage() {
 
             {result && (
               <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <div className="mb-4">
+                  <p className="mb-2 text-sm font-bold text-slate-700">
+                    AIで再編集
+                  </p>
+
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      ["polite", "✨ もっと丁寧"],
+                      ["short", "✂️ 短く"],
+                      ["soft", "😊 やわらかく"],
+                      ["formal", "💼 フォーマル"],
+                      ["apology", "🙏 謝罪寄り"],
+                    ].map(([style, label]) => (
+                      <button
+                        key={style}
+                        type="button"
+                        onClick={() => void rewriteMail(style)}
+                        disabled={isRewriting}
+                        className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isRewriting ? "再編集中..." : label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <h2 className="text-lg font-bold text-slate-800">生成結果</h2>
 

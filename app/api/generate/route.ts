@@ -14,6 +14,8 @@ type RequestBody = {
   tone?: unknown;
   receivedMail?: unknown;
   replyIntent?: unknown;
+  rewriteStyle?: unknown;
+  originalMail?: unknown;
 };
 
 const recipientTypes = ["上司", "取引先", "同僚", "先生", "その他"];
@@ -23,7 +25,12 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as RequestBody;
 
-    const mailMode = body.mailMode === "reply" ? "reply" : "new";
+    const mailMode =
+      body.mailMode === "reply"
+        ? "reply"
+        : body.mailMode === "rewrite"
+          ? "rewrite"
+          : "new";
     const recipient =
       typeof body.recipient === "string" ? body.recipient.trim() : "";
     const subject =
@@ -34,6 +41,16 @@ export async function POST(request: Request) {
       typeof body.receivedMail === "string" ? body.receivedMail.trim() : "";
     const replyIntent =
       typeof body.replyIntent === "string" ? body.replyIntent.trim() : "";
+
+    const rewriteStyle =
+      typeof body.rewriteStyle === "string"
+        ? body.rewriteStyle.trim()
+        : "";
+
+    const originalMail =
+      typeof body.originalMail === "string"
+        ? body.originalMail.trim()
+        : "";
 
     const recipientType =
       typeof body.recipientType === "string" &&
@@ -61,6 +78,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (mailMode === "rewrite" && !originalMail) {
+      return NextResponse.json(
+        { error: "再編集するメールがありません。" },
+        { status: 400 }
+      );
+    }
+
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
         { error: "Gemini APIキーが設定されていません。" },
@@ -68,9 +92,40 @@ export async function POST(request: Request) {
       );
     }
 
+    const rewriteInstructions: Record<string, string> = {
+      polite:
+        "意味を変えずに、より丁寧で自然な敬語にしてください。",
+      short:
+        "要点を保ちながら、できるだけ短く簡潔にしてください。",
+      soft:
+        "意味を変えずに、やわらかく親しみやすい表現にしてください。",
+      formal:
+        "意味を変えずに、より格式のあるビジネス文書調にしてください。",
+      apology:
+        "意味を変えずに、謝意と誠実さがより伝わる文章にしてください。",
+    };
+
     const prompt =
-      mailMode === "new"
+      mailMode === "rewrite"
         ? `
+あなたは日本語ビジネスメールの編集専門家です。
+
+以下のメールを再編集してください。
+
+編集指示：
+${rewriteInstructions[rewriteStyle] || "より自然で読みやすいメールにしてください。"}
+
+元のメール：
+${originalMail}
+
+条件：
+- 元のメールの事実関係や意図を変えない
+- 入力されていない情報を追加しない
+- 件名と本文の形式を維持する
+- 完成したメールだけを出力する
+`.trim()
+        : mailMode === "new"
+          ? `
 あなたは日本企業の事務・総務担当者を支援する、
 ビジネスメール作成の専門アシスタントです。
 
@@ -91,7 +146,7 @@ export async function POST(request: Request) {
 - 不足箇所は「〇〇様」などのプレースホルダーを使う
 - 完成したメールだけを出力する
 `.trim()
-        : `
+          : `
 あなたは日本企業の事務・総務担当者を支援する、
 ビジネスメール返信の専門アシスタントです。
 
